@@ -1,0 +1,23 @@
+# Service definitions for PhotoPrism AI Search
+search_and_notify:
+  name: Search and Notify
+  description: Performs an AI photo search and sends the top image to a notify target.
+  fields:
+    entry_id:
+      name: Configuration Entry ID
+      description: The integration entry ID to use.
+      required: true
+      selector:
+        text:
+    query:
+      name: Search Query
+      description: The natural language search query (e.g. "Hanna in the pool").
+      required: true
+      selector:
+        text:
+    notify_service:
+      name: Notify Service
+      description: The Home Assistant notify service to call (e.g. "notify.telegram_bot" or "notify.mobile_app_my_phone").
+      required: true
+      selector:
+        text:

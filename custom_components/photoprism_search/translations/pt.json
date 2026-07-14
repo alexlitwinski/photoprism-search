@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuração do PhotoPrism AI Search",
+        "description": "Configure o acesso à sua instância do PhotoPrism e sua chave de API do Gemini para habilitar buscas por inteligência artificial.",
+        "data": {
+          "url": "URL do PhotoPrism",
+          "username": "Usuário",
+          "password": "Senha",
+          "gemini_key": "Chave API do Gemini",
+          "gemini_model": "Modelo Gemini (Opcional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect_photoprism": "Não foi possível conectar ao PhotoPrism. Verifique a URL e se o servidor está ativo.",
+      "invalid_auth_photoprism": "Usuário ou senha incorretos para o PhotoPrism.",
+      "invalid_gemini_key": "A chave da API Gemini informada é inválida ou não possui permissão.",
+      "cannot_connect_gemini": "Falha ao conectar com o servidor da API Gemini.",
+      "unknown": "Ocorreu um erro inesperado."
+    }
+  }
+}

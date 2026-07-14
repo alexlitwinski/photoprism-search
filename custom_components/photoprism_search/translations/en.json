@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "PhotoPrism AI Search Setup",
+        "description": "Configure access to your PhotoPrism instance and your Gemini API Key to enable AI search queries.",
+        "data": {
+          "url": "PhotoPrism URL",
+          "username": "Username",
+          "password": "Password",
+          "gemini_key": "Gemini API Key",
+          "gemini_model": "Gemini Model (Optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect_photoprism": "Could not connect to PhotoPrism instance. Check the URL and check if the server is running.",
+      "invalid_auth_photoprism": "Invalid username or password for PhotoPrism.",
+      "invalid_gemini_key": "The provided Gemini API Key is invalid or not allowed.",
+      "cannot_connect_gemini": "Failed to connect to the Gemini API server.",
+      "unknown": "An unexpected error occurred."
+    }
+  }
+}
