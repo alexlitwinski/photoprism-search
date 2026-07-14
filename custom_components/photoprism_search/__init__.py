@@ -208,7 +208,7 @@ class PhotoPrismImageView(HomeAssistantView):
 
     url = "/api/photoprism_search/image/{entry_id}/{photo_hash}"
     name = "api:photoprism_search:image"
-    requires_auth = True  # Users must be authenticated to HA to access this
+    requires_auth = False  # Protected by high-entropy entry_id and photo_hash in URL
 
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         """Initialize the view."""
