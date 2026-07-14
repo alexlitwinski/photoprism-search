@@ -357,29 +357,36 @@ class PhotoPrismSearchCard extends HTMLElement {
 
           .actions {
             display: flex;
-            gap: 6px;
-            margin-top: 6px;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: flex-end;
           }
 
           .action-btn {
-            flex: 1;
-            background: rgba(255,255,255,0.2);
-            border: none;
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             color: white;
-            font-size: 9px;
-            padding: 4px 6px;
-            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-            font-weight: 600;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
           }
 
           .action-btn:hover {
             background: var(--primary-color, #03a9f4);
+            border-color: var(--primary-color, #03a9f4);
+            transform: scale(1.1);
+          }
+
+          .action-btn ha-icon {
+            --mdc-icon-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
           }
 
           .error-message {
@@ -597,12 +604,12 @@ class PhotoPrismSearchCard extends HTMLElement {
                 ${labelsJoined ? `<span>🏷️ ${labelsJoined}</span>` : ''}
               </div>
               <div class="actions">
-                <button class="action-btn" onclick="this.getRootNode().host.openForwardDialog(${JSON.stringify(photo).replace(/"/g, '&quot;')})">
-                  <ha-icon icon="mdi:share-variant"></ha-icon> Encaminhar
+                <button class="action-btn" title="Encaminhar" onclick="this.getRootNode().host.openForwardDialog(${JSON.stringify(photo).replace(/"/g, '&quot;')})">
+                  <ha-icon icon="mdi:share-variant"></ha-icon>
                 </button>
-                <a href="${photo.download_url}" target="_blank" style="text-decoration: none; flex: 1;">
-                  <button class="action-btn" style="width: 100%;">
-                    <ha-icon icon="mdi:download"></ha-icon> Baixar
+                <a href="${photo.download_url}" target="_blank" style="text-decoration: none;">
+                  <button class="action-btn" title="Baixar">
+                    <ha-icon icon="mdi:download"></ha-icon>
                   </button>
                 </a>
               </div>
