@@ -103,7 +103,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             async with session.get(
                 f"{url}/api/v1/photos",
                 headers=headers,
-                params={"q": translated_q, "count": 1, "primary": "true", "merged": "true", "order": "newest"},
+                params={"q": translated_q, "count": 1, "primary": "true", "merged": "true", "order": "newest", "public": "true"},
                 ssl=False,
                 timeout=20
             ) as resp:
@@ -347,6 +347,7 @@ async def websocket_search(
         "primary": "true",
         "merged": "true",
         "order": "newest",
+        "public": "true",
     }
 
     try:
