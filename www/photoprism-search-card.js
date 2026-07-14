@@ -158,442 +158,455 @@ class PhotoPrismSearchCard extends HTMLElement {
   render() {
     if (!this.hass) return;
 
-    // Save input value and selection/focus state
-    const activeEl = this.shadowRoot.activeElement;
-    const inputWasFocused = activeEl && activeEl.id === 'search-input';
-    const oldInputValue = this.shadowRoot.querySelector('#search-input') 
-      ? this.shadowRoot.querySelector('#search-input').value 
-      : '';
-      
-    const notifyInputWasFocused = activeEl && activeEl.id === 'custom-notify-input';
-    const oldNotifyValue = this.shadowRoot.querySelector('#custom-notify-input')
-      ? this.shadowRoot.querySelector('#custom-notify-input').value
-      : '';
+    // 1. Render style and skeleton only once
+    if (!this.shadowRoot.querySelector('.card-container')) {
+      const style = `
+        <style>
+          :host {
+            display: block;
+          }
+          
+          .card-container {
+            background: var(--ha-card-background, rgba(20, 20, 25, 0.65));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--ha-card-border-radius, 12px);
+            padding: 16px;
+            color: var(--primary-text-color, #ffffff);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.3s ease;
+            overflow: hidden;
+          }
 
+          .header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+          }
 
-    // Get notify services dynamically from hass
-    const notifyServices = [];
-    if (this.hass.services && this.hass.services.notify) {
-      Object.keys(this.hass.services.notify).forEach(service => {
-        notifyServices.push(`notify.${service}`);
-      });
-    }
+          .header ha-icon {
+            color: var(--accent-color, #ff9800);
+            --mdc-icon-size: 28px;
+          }
 
-    const style = `
-      <style>
-        :host {
-          display: block;
-        }
-        
-        .card-container {
-          background: var(--ha-card-background, rgba(20, 20, 25, 0.65));
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: var(--ha-card-border-radius, 12px);
-          padding: 16px;
-          color: var(--primary-text-color, #ffffff);
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-          transition: all 0.3s ease;
-          overflow: hidden;
-        }
+          .title {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            background: linear-gradient(45deg, #ff9800, #ff5722);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+          }
 
-        .header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
+          .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+          }
 
-        .header ha-icon {
-          color: var(--accent-color, #ff9800);
-          --mdc-icon-size: 28px;
-        }
+          .search-box input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+          }
 
-        .title {
-          font-size: 20px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          background: linear-gradient(45deg, #ff9800, #ff5722);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
+          .search-box input:focus {
+            border-color: var(--accent-color, #ff9800);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 8px rgba(255, 152, 0, 0.2);
+          }
 
-        .search-box {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 16px;
-        }
+          .search-box button {
+            background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
 
-        .search-box input {
-          flex: 1;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-radius: 8px;
-          padding: 12px 16px;
-          color: white;
-          font-size: 14px;
-          outline: none;
-          transition: all 0.3s ease;
-        }
+          .search-box button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 87, 34, 0.3);
+          }
 
-        .search-box input:focus {
-          border-color: var(--accent-color, #ff9800);
-          background: rgba(255, 255, 255, 0.08);
-          box-shadow: 0 0 8px rgba(255, 152, 0, 0.2);
-        }
+          .search-box button:active {
+            transform: translateY(1px);
+          }
 
-        .search-box button {
-          background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
-          border: none;
-          border-radius: 8px;
-          color: white;
-          padding: 0 20px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+          .translated-info {
+            font-size: 11px;
+            color: var(--secondary-text-color, #aaaaaa);
+            margin-top: -10px;
+            margin-bottom: 14px;
+            font-style: italic;
+            padding-left: 4px;
+          }
 
-        .search-box button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(255, 87, 34, 0.3);
-        }
+          .loader-bar {
+            height: 3px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            display: none;
+          }
 
-        .search-box button:active {
-          transform: translateY(1px);
-        }
+          .loader-progress {
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(90deg, #ff9800, #ff5722);
+            border-radius: 2px;
+            animation: loading-anim 1.5s infinite ease-in-out;
+          }
 
-        .translated-info {
-          font-size: 11px;
-          color: var(--secondary-text-color, #aaaaaa);
-          margin-top: -10px;
-          margin-bottom: 14px;
-          font-style: italic;
-          padding-left: 4px;
-        }
+          @keyframes loading-anim {
+            0% { margin-left: -50%; }
+            100% { margin-left: 100%; }
+          }
 
-        .loader-bar {
-          height: 3px;
-          width: 100%;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 2px;
-          overflow: hidden;
-          margin-bottom: 16px;
-          display: none;
-        }
+          .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+          }
 
-        .loader-progress {
-          height: 100%;
-          width: 50%;
-          background: linear-gradient(90deg, #ff9800, #ff5722);
-          border-radius: 2px;
-          animation: loading-anim 1.5s infinite ease-in-out;
-        }
+          .photo-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+          }
 
-        @keyframes loading-anim {
-          0% { margin-left: -50%; }
-          100% { margin-left: 100%; }
-        }
+          .photo-item:hover {
+            transform: scale(1.04);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            border-color: rgba(255, 152, 0, 0.4);
+          }
 
-        .photo-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-          gap: 12px;
-        }
+          .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
 
-        .photo-item {
-          position: relative;
-          aspect-ratio: 1;
-          border-radius: 8px;
-          overflow: hidden;
-          background: rgba(0,0,0,0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-        }
+          .photo-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 100%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 8px;
+          }
 
-        .photo-item:hover {
-          transform: scale(1.04);
-          box-shadow: 0 8px 16px rgba(0,0,0,0.5);
-          border-color: rgba(255, 152, 0, 0.4);
-        }
+          .photo-item:hover .photo-overlay {
+            opacity: 1;
+          }
 
-        .photo-item img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+          .photo-title {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
 
-        .photo-overlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 100%);
-          opacity: 0;
-          transition: opacity 0.25s ease;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-end;
-          padding: 8px;
-        }
+          .photo-meta {
+            font-size: 9px;
+            color: #cccccc;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+          }
 
-        .photo-item:hover .photo-overlay {
-          opacity: 1;
-        }
+          .actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+          }
 
-        .photo-title {
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 2px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
+          .action-btn {
+            flex: 1;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            font-size: 9px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-weight: 600;
+            transition: background 0.2s;
+          }
 
-        .photo-meta {
-          font-size: 9px;
-          color: #cccccc;
-          display: flex;
-          flex-direction: column;
-          gap: 1px;
-        }
+          .action-btn:hover {
+            background: var(--accent-color, #ff9800);
+          }
 
-        .actions {
-          display: flex;
-          gap: 6px;
-          margin-top: 6px;
-        }
+          .error-message {
+            color: #f44336;
+            font-size: 13px;
+            background: rgba(244, 67, 54, 0.1);
+            border-left: 4px solid #f44336;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            display: none;
+          }
 
-        .action-btn {
-          flex: 1;
-          background: rgba(255,255,255,0.15);
-          border: none;
-          color: white;
-          font-size: 9px;
-          padding: 4px 6px;
-          border-radius: 4px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          font-weight: 600;
-          transition: background 0.2s;
-        }
+          /* Modal dialog styles */
+          .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fade-in 0.25s ease;
+          }
 
-        .action-btn:hover {
-          background: var(--accent-color, #ff9800);
-        }
+          @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
 
-        .error-message {
-          color: #f44336;
-          font-size: 13px;
-          background: rgba(244, 67, 54, 0.1);
-          border-left: 4px solid #f44336;
-          padding: 10px;
-          border-radius: 4px;
-          margin-bottom: 16px;
-        }
+          .dialog-card {
+            background: var(--ha-card-background, #1c1c22);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+          }
 
-        /* Modal dialog styles */
-        .dialog-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          display: none;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          animation: fade-in 0.25s ease;
-        }
+          .dialog-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 14px;
+          }
 
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+          .dialog-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+          }
 
-        .dialog-card {
-          background: var(--ha-card-background, #1c1c22);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
-          width: 90%;
-          max-width: 400px;
-          padding: 20px;
-          color: white;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
+          .dialog-fields select, .dialog-fields input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            padding: 10px;
+            color: white;
+            font-size: 13px;
+            outline: none;
+          }
 
-        .dialog-title {
-          font-size: 16px;
-          font-weight: 600;
-          margin-bottom: 14px;
-        }
+          .dialog-fields select option {
+            background: #1c1c22;
+            color: white;
+          }
 
-        .dialog-fields {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
+          .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+          }
 
-        .dialog-fields select, .dialog-fields input {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.15);
-          border-radius: 6px;
-          padding: 10px;
-          color: white;
-          font-size: 13px;
-          outline: none;
-        }
+          .btn-cancel {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+          }
 
-        .dialog-fields select option {
-          background: #1c1c22;
-          color: white;
-        }
+          .btn-send {
+            background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+          }
+        </style>
+      `;
 
-        .dialog-buttons {
-          display: flex;
-          justify-content: flex-end;
-          gap: 10px;
-        }
+      const body = `
+        <div class="card-container">
+          <div class="header">
+            <ha-icon icon="mdi:image-search-outline"></ha-icon>
+            <span class="title">PhotoPrism AI Search</span>
+          </div>
 
-        .btn-cancel {
-          background: transparent;
-          border: 1px solid rgba(255,255,255,0.2);
-          color: white;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 13px;
-        }
+          <div class="search-box">
+            <input 
+              type="text" 
+              id="search-input" 
+              placeholder="Ex: Hanna na praia com o Alex em 2024..." 
+              onkeydown="if(event.key === 'Enter') this.getRootNode().host.performSearch()"
+            />
+            <button onclick="this.getRootNode().host.performSearch()">
+              <ha-icon icon="mdi:magnify"></ha-icon> Buscar
+            </button>
+          </div>
 
-        .btn-send {
-          background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
-          border: none;
-          color: white;
-          padding: 8px 16px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-        }
-      </style>
-    `;
+          <div class="translated-info" style="display: none;"></div>
 
-    let photosHtml = '';
-    this.photos.forEach(photo => {
-      const formattedDate = photo.taken_at ? new Date(photo.taken_at).toLocaleDateString() : '';
-      const labelsJoined = photo.labels ? photo.labels.slice(0, 3).join(', ') : '';
-      
-      photosHtml += `
-        <div class="photo-item">
-          <img src="${photo.thumb_url}" alt="${photo.title}" loading="lazy" />
-          <div class="photo-overlay">
-            <div class="photo-title">${photo.title}</div>
-            <div class="photo-meta">
-              ${formattedDate ? `<span>📅 ${formattedDate}</span>` : ''}
-              ${photo.place ? `<span>📍 ${photo.place}</span>` : ''}
-              ${labelsJoined ? `<span>🏷️ ${labelsJoined}</span>` : ''}
+          <div class="loader-bar">
+            <div class="loader-progress"></div>
+          </div>
+
+          <div class="error-message"></div>
+
+          <div class="photo-grid"></div>
+        </div>
+
+        <!-- Share Dialog -->
+        <div id="forward-dialog" class="dialog-overlay">
+          <div class="dialog-card">
+            <div class="dialog-title">Encaminhar Foto</div>
+            <div class="dialog-fields">
+              <label style="font-size: 12px; color: #aaa;">Enviar para serviço de notificação:</label>
+              <select id="notify-select">
+                <option value="">Selecione um serviço...</option>
+              </select>
+              <span style="font-size: 11px; color: #888; text-align: center;">ou digite um serviço customizado:</span>
+              <input type="text" id="custom-notify-input" placeholder="notify.telegram_bot" />
             </div>
-            <div class="actions">
-              <button class="action-btn" onclick="this.getRootNode().host.openForwardDialog(${JSON.stringify(photo).replace(/"/g, '&quot;')})">
-                <ha-icon icon="mdi:share-variant"></ha-icon> Encaminhar
-              </button>
-              <a href="${photo.download_url}" target="_blank" style="text-decoration: none; flex: 1;">
-                <button class="action-btn" style="width: 100%;">
-                  <ha-icon icon="mdi:download"></ha-icon> Baixar
-                </button>
-              </a>
+            <div class="dialog-buttons">
+              <button class="btn-cancel" onclick="this.getRootNode().host.closeForwardDialog()">Cancelar</button>
+              <button class="btn-send" onclick="this.getRootNode().host.sendForward()">Enviar</button>
             </div>
           </div>
         </div>
       `;
-    });
 
-    // Notify services dropdown options
-    let notifyOptions = '<option value="">Selecione um serviço...</option>';
-    notifyServices.forEach(srv => {
-      notifyOptions += `<option value="${srv}">${srv}</option>`;
-    });
+      this.shadowRoot.innerHTML = style + body;
+    }
 
-    const body = `
-      <div class="card-container">
-        <div class="header">
-          <ha-icon icon="mdi:image-search-outline"></ha-icon>
-          <span class="title">PhotoPrism AI Search</span>
-        </div>
-
-        <div class="search-box">
-          <input 
-            type="text" 
-            id="search-input" 
-            placeholder="Ex: Hanna na praia com o Alex em 2024..." 
-            onkeydown="if(event.key === 'Enter') this.getRootNode().host.performSearch()"
-          />
-          <button onclick="this.getRootNode().host.performSearch()">
-            <ha-icon icon="mdi:magnify"></ha-icon> Buscar
-          </button>
-        </div>
-
-        ${this.translatedQuery ? `<div class="translated-info">Filtro gerado: "${this.translatedQuery}"</div>` : ''}
-
-        <div class="loader-bar" style="display: ${this.searching ? 'block' : 'none'};">
-          <div class="loader-progress"></div>
-        </div>
-
-        ${this.error ? `<div class="error-message">${this.error}</div>` : ''}
-
-        <div class="photo-grid">
-          ${photosHtml}
-        </div>
-      </div>
-
-      <!-- Share Dialog -->
-      <div id="forward-dialog" class="dialog-overlay">
-        <div class="dialog-card">
-          <div class="dialog-title">Encaminhar Foto</div>
-          <div class="dialog-fields">
-            <label style="font-size: 12px; color: #aaa;">Enviar para serviço de notificação:</label>
-            <select id="notify-select">
-              ${notifyOptions}
-            </select>
-            <span style="font-size: 11px; color: #888; text-align: center;">ou digite um serviço customizado:</span>
-            <input type="text" id="custom-notify-input" placeholder="notify.telegram_bot" />
-          </div>
-          <div class="dialog-buttons">
-            <button class="btn-cancel" onclick="this.getRootNode().host.closeForwardDialog()">Cancelar</button>
-            <button class="btn-send" onclick="this.getRootNode().host.sendForward()">Enviar</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    this.shadowRoot.innerHTML = style + body;
-
-    // Restore input value and focus
-    const newInput = this.shadowRoot.querySelector('#search-input');
-    if (newInput) {
-      newInput.value = oldInputValue;
-      if (inputWasFocused) {
-        newInput.focus();
-        // Place cursor at the end of the text
-        newInput.setSelectionRange(oldInputValue.length, oldInputValue.length);
+    // 2. Perform granular updates to the DOM without recreation
+    
+    // Update translation text
+    const transEl = this.shadowRoot.querySelector('.translated-info');
+    if (transEl) {
+      if (this.translatedQuery) {
+        transEl.textContent = `Filtro gerado: "${this.translatedQuery}"`;
+        transEl.style.display = 'block';
+      } else {
+        transEl.style.display = 'none';
       }
     }
 
-    const newNotifyInput = this.shadowRoot.querySelector('#custom-notify-input');
-    if (newNotifyInput) {
-      newNotifyInput.value = oldNotifyValue;
-      if (notifyInputWasFocused) {
-        newNotifyInput.focus();
-        newNotifyInput.setSelectionRange(oldNotifyValue.length, oldNotifyValue.length);
+    // Update loader visibility
+    const loaderEl = this.shadowRoot.querySelector('.loader-bar');
+    if (loaderEl) {
+      loaderEl.style.display = this.searching ? 'block' : 'none';
+    }
+
+    // Update error messages
+    const errorEl = this.shadowRoot.querySelector('.error-message');
+    if (errorEl) {
+      if (this.error) {
+        errorEl.textContent = this.error;
+        errorEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'none';
+      }
+    }
+
+    // Update Photo Grid list
+    const gridEl = this.shadowRoot.querySelector('.photo-grid');
+    if (gridEl) {
+      let photosHtml = '';
+      this.photos.forEach(photo => {
+        const formattedDate = photo.taken_at ? new Date(photo.taken_at).toLocaleDateString() : '';
+        const labelsJoined = photo.labels ? photo.labels.slice(0, 3).join(', ') : '';
+        
+        photosHtml += `
+          <div class="photo-item">
+            <img src="${photo.thumb_url}" alt="${photo.title}" loading="lazy" />
+            <div class="photo-overlay">
+              <div class="photo-title">${photo.title}</div>
+              <div class="photo-meta">
+                ${formattedDate ? `<span>📅 ${formattedDate}</span>` : ''}
+                ${photo.place ? `<span>📍 ${photo.place}</span>` : ''}
+                ${labelsJoined ? `<span>🏷️ ${labelsJoined}</span>` : ''}
+              </div>
+              <div class="actions">
+                <button class="action-btn" onclick="this.getRootNode().host.openForwardDialog(${JSON.stringify(photo).replace(/"/g, '&quot;')})">
+                  <ha-icon icon="mdi:share-variant"></ha-icon> Encaminhar
+                </button>
+                <a href="${photo.download_url}" target="_blank" style="text-decoration: none; flex: 1;">
+                  <button class="action-btn" style="width: 100%;">
+                    <ha-icon icon="mdi:download"></ha-icon> Baixar
+                  </button>
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      gridEl.innerHTML = photosHtml;
+    }
+
+    // Update list of notify services
+    const notifySelect = this.shadowRoot.querySelector('#notify-select');
+    if (notifySelect) {
+      const notifyServices = [];
+      if (this.hass.services && this.hass.services.notify) {
+        Object.keys(this.hass.services.notify).forEach(service => {
+          notifyServices.push(`notify.${service}`);
+        });
+      }
+      
+      let notifyOptions = '<option value="">Selecione um serviço...</option>';
+      notifyServices.forEach(srv => {
+        notifyOptions += `<option value="${srv}">${srv}</option>`;
+      });
+      
+      // Preserve selection if possible
+      const currentSelected = notifySelect.value;
+      notifySelect.innerHTML = notifyOptions;
+      if (currentSelected) {
+        notifySelect.value = currentSelected;
       }
     }
   }
