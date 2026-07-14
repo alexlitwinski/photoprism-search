@@ -50,6 +50,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             async with session.post(
                 f"{url}/api/v1/session",
                 json={"username": username, "password": password},
+                ssl=False,
                 timeout=10,
             ) as resp:
                 if resp.status not in (200, 201):
@@ -59,11 +60,12 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             async with session.post(
                 f"{url}/api/v1/session",
                 json={},
+                ssl=False,
                 timeout=10,
             ) as resp:
                 if resp.status not in (200, 201):
                     # Fallback test of just reading base endpoint
-                    async with session.get(url, timeout=10) as r:
+                    async with session.get(url, ssl=False, timeout=10) as r:
                         r.raise_for_status()
     except Exception as exc:
         _LOGGER.error("Failed to connect to PhotoPrism: %s", exc)

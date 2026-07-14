@@ -104,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 f"{url}/api/v1/photos",
                 headers=headers,
                 params={"q": translated_q, "count": 1, "primary": "true", "merged": "true", "order": "newest"},
+                ssl=False,
                 timeout=20
             ) as resp:
                 if resp.status == 200:
@@ -168,6 +169,7 @@ async def get_photoprism_session(hass: HomeAssistant, entry_id: str) -> tuple[st
             async with session.post(
                 f"{url}/api/v1/session",
                 json={"username": username, "password": password},
+                ssl=False,
                 timeout=15
             ) as resp:
                 if resp.status in (200, 201):
@@ -179,7 +181,7 @@ async def get_photoprism_session(hass: HomeAssistant, entry_id: str) -> tuple[st
                     _LOGGER.error("Failed to authenticate to PhotoPrism: status %s", resp.status)
         else:
             # Try anonymous session
-            async with session.post(f"{url}/api/v1/session", json={}, timeout=15) as resp:
+            async with session.post(f"{url}/api/v1/session", json={}, ssl=False, timeout=15) as resp:
                 if resp.status in (200, 201):
                     data = await resp.json()
                     config["session_id"] = data.get("id") or data.get("access_token")
@@ -231,7 +233,7 @@ class PhotoPrismImageView(HomeAssistantView):
         session = aiohttp_client.async_get_clientsession(self.hass)
         
         try:
-            async with session.get(target_url, headers=headers, timeout=30) as resp:
+            async with session.get(target_url, headers=headers, ssl=False, timeout=30) as resp:
                 if resp.status != 200:
                     _LOGGER.error("Failed fetching photo from PhotoPrism: status %s", resp.status)
                     return aiohttp.web.Response(status=resp.status, text="Error fetching from PhotoPrism")
@@ -348,7 +350,7 @@ async def websocket_search(
     }
 
     try:
-        async with session.get(photos_endpoint, headers=headers, params=params, timeout=20) as resp:
+        async with session.get(photos_endpoint, headers=headers, params=params, ssl=False, timeout=20) as resp:
             if resp.status != 200:
                 connection.send_error(
                     msg["id"], 
