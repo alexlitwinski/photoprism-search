@@ -338,7 +338,7 @@ async def websocket_search(
         "1. SEMPRE envolva valores de busca que contenham espaços em aspas duplas (ex: subject:\"João Guilherme\", \"Ouro Preto\"). Nunca deixe espaços sem aspas.\n"
         "2. Traduza termos em português para o inglês se for um label/category (ex: 'praia' -> label:beach, 'gato' -> label:cat).\n"
         "3. Se o usuário disser apenas um primeiro nome (ex: 'João') e houver múltiplos matches no banco (ex: 'João Guilherme' e 'João Litwinski'), "
-        "não preencha o filtro de busca ('q': '') e pergunte ao usuário educadamente no campo 'response' a qual João ele se refere.\n"
+        "não preencha o filtro de busca ('q': '') e pergunte ao usuário no campo 'response' de forma clara e amigável qual João ele deseja, listando explicitamente todas as opções encontradas nas pessoas cadastradas para o usuário escolher (ex: 'Temos João Guilherme e João Litwinski cadastrados. A qual deles você se refere?').\n"
         "4. Se o usuário estiver respondendo a uma pergunta anterior (ex: 'Guilherme' após você perguntar qual João), lembre-se do contexto para formar o filtro correto (ex: subject:\"João Guilherme\").\n"
         "5. Sempre responda no campo 'response' com uma mensagem amigável em português explicando o que está buscando ou respondendo à dúvida do usuário.\n"
         "6. IMPORTANTE: As listas de pessoas (subjects) e etiquetas (labels) acima não contêm nomes de locais (cidades, países) nem de pastas físicas. "
