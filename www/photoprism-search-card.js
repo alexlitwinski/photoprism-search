@@ -24,8 +24,15 @@ class PhotoPrismSearchCard extends HTMLElement {
 
   // Home Assistant sets the hass object whenever state changes
   set hass(hass) {
+    const oldHass = this._hass;
     this._hass = hass;
-    this.render();
+    
+    // Only re-render if we haven't rendered the container yet,
+    // or if the notify services list actually changed.
+    if (!this.shadowRoot.querySelector('.card-container') || 
+        (oldHass && JSON.stringify(oldHass.services?.notify) !== JSON.stringify(hass.services?.notify))) {
+      this.render();
+    }
   }
 
   get hass() {
@@ -167,14 +174,12 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
           
           .card-container {
-            background: var(--ha-card-background, rgba(20, 20, 25, 0.65));
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--ha-card-background, var(--card-background-color, white));
             border-radius: var(--ha-card-border-radius, 12px);
+            border: var(--ha-card-border, 1px solid var(--divider-color, #e0e0e0));
             padding: 16px;
-            color: var(--primary-text-color, #ffffff);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            color: var(--primary-text-color, #212121);
+            box-shadow: var(--ha-card-box-shadow, none);
             transition: all 0.3s ease;
             overflow: hidden;
           }
@@ -187,7 +192,7 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
 
           .header ha-icon {
-            color: var(--accent-color, #ff9800);
+            color: var(--primary-color, #03a9f4);
             --mdc-icon-size: 28px;
           }
 
@@ -195,9 +200,7 @@ class PhotoPrismSearchCard extends HTMLElement {
             font-size: 20px;
             font-weight: 600;
             letter-spacing: 0.5px;
-            background: linear-gradient(45deg, #ff9800, #ff5722);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--primary-text-color, #212121);
           }
 
           .search-box {
@@ -208,27 +211,25 @@ class PhotoPrismSearchCard extends HTMLElement {
 
           .search-box input {
             flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 8px;
+            background: var(--input-background-color, var(--card-background-color, white));
+            border: 1px solid var(--input-outlined-border-color, var(--divider-color, #e0e0e0));
+            border-radius: 4px;
             padding: 12px 16px;
-            color: white;
+            color: var(--primary-text-color, #212121);
             font-size: 14px;
             outline: none;
             transition: all 0.3s ease;
           }
 
           .search-box input:focus {
-            border-color: var(--accent-color, #ff9800);
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 8px rgba(255, 152, 0, 0.2);
+            border-color: var(--primary-color, #03a9f4);
           }
 
           .search-box button {
-            background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
+            background: var(--primary-color, #03a9f4);
             border: none;
-            border-radius: 8px;
-            color: white;
+            border-radius: 4px;
+            color: var(--text-primary-color, white);
             padding: 0 20px;
             font-size: 14px;
             font-weight: 600;
@@ -240,8 +241,8 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
 
           .search-box button:hover {
+            opacity: 0.9;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(255, 87, 34, 0.3);
           }
 
           .search-box button:active {
@@ -260,7 +261,7 @@ class PhotoPrismSearchCard extends HTMLElement {
           .loader-bar {
             height: 3px;
             width: 100%;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.1);
             border-radius: 2px;
             overflow: hidden;
             margin-bottom: 16px;
@@ -270,7 +271,7 @@ class PhotoPrismSearchCard extends HTMLElement {
           .loader-progress {
             height: 100%;
             width: 50%;
-            background: linear-gradient(90deg, #ff9800, #ff5722);
+            background: var(--primary-color, #03a9f4);
             border-radius: 2px;
             animation: loading-anim 1.5s infinite ease-in-out;
           }
@@ -291,15 +292,15 @@ class PhotoPrismSearchCard extends HTMLElement {
             aspect-ratio: 1;
             border-radius: 8px;
             overflow: hidden;
-            background: rgba(0,0,0,0.2);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(0,0,0,0.1);
+            border: 1px solid var(--divider-color, #e0e0e0);
             transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
           }
 
           .photo-item:hover {
             transform: scale(1.04);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
-            border-color: rgba(255, 152, 0, 0.4);
+            box-shadow: var(--ha-card-box-shadow, 0 8px 16px rgba(0,0,0,0.2));
+            border-color: var(--primary-color, #03a9f4);
           }
 
           .photo-item img {
@@ -318,6 +319,7 @@ class PhotoPrismSearchCard extends HTMLElement {
             flex-direction: column;
             justify-content: flex-end;
             padding: 8px;
+            color: white;
           }
 
           .photo-item:hover .photo-overlay {
@@ -349,7 +351,7 @@ class PhotoPrismSearchCard extends HTMLElement {
 
           .action-btn {
             flex: 1;
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.2);
             border: none;
             color: white;
             font-size: 9px;
@@ -365,14 +367,14 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
 
           .action-btn:hover {
-            background: var(--accent-color, #ff9800);
+            background: var(--primary-color, #03a9f4);
           }
 
           .error-message {
-            color: #f44336;
+            color: var(--error-color, #db4437);
             font-size: 13px;
-            background: rgba(244, 67, 54, 0.1);
-            border-left: 4px solid #f44336;
+            background: rgba(var(--rgb-error-color, 219, 68, 55), 0.1);
+            border-left: 4px solid var(--error-color, #db4437);
             padding: 10px;
             border-radius: 4px;
             margin-bottom: 16px;
@@ -386,9 +388,9 @@ class PhotoPrismSearchCard extends HTMLElement {
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             display: none;
             align-items: center;
             justify-content: center;
@@ -402,14 +404,14 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
 
           .dialog-card {
-            background: var(--ha-card-background, #1c1c22);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
+            background: var(--ha-card-background, var(--card-background-color, white));
+            border: 1px solid var(--divider-color, #e0e0e0);
+            border-radius: 8px;
             width: 90%;
             max-width: 400px;
             padding: 20px;
-            color: white;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            color: var(--primary-text-color, #212121);
+            box-shadow: var(--ha-card-box-shadow, 0 10px 25px rgba(0,0,0,0.3));
           }
 
           .dialog-title {
@@ -426,18 +428,18 @@ class PhotoPrismSearchCard extends HTMLElement {
           }
 
           .dialog-fields select, .dialog-fields input {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 6px;
+            background: var(--input-background-color, var(--card-background-color, white));
+            border: 1px solid var(--input-outlined-border-color, var(--divider-color, #e0e0e0));
+            border-radius: 4px;
             padding: 10px;
-            color: white;
+            color: var(--primary-text-color, #212121);
             font-size: 13px;
             outline: none;
           }
 
           .dialog-fields select option {
-            background: #1c1c22;
-            color: white;
+            background: var(--card-background-color, white);
+            color: var(--primary-text-color, #212121);
           }
 
           .dialog-buttons {
@@ -448,20 +450,20 @@ class PhotoPrismSearchCard extends HTMLElement {
 
           .btn-cancel {
             background: transparent;
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
+            border: 1px solid var(--divider-color, #e0e0e0);
+            color: var(--primary-text-color, #212121);
             padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             font-size: 13px;
           }
 
           .btn-send {
-            background: linear-gradient(135deg, var(--accent-color, #ff9800) 0%, #ff5722 100%);
+            background: var(--primary-color, #03a9f4);
             border: none;
-            color: white;
+            color: var(--text-primary-color, white);
             padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
