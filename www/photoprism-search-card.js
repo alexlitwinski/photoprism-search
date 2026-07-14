@@ -14,6 +14,7 @@ class PhotoPrismSearchCard extends HTMLElement {
     this.searching = false;
     this.error = null;
     this.translatedQuery = '';
+    this.explanation = '';
     this.selectedPhoto = null; // For the forward dialog
   }
 
@@ -75,6 +76,7 @@ class PhotoPrismSearchCard extends HTMLElement {
     this.error = null;
     this.photos = [];
     this.translatedQuery = '';
+    this.explanation = '';
     this.render();
 
     const entryId = await this.getEntryId();
@@ -94,6 +96,7 @@ class PhotoPrismSearchCard extends HTMLElement {
 
       this.photos = result.photos || [];
       this.translatedQuery = result.translated_query || '';
+      this.explanation = result.explanation || '';
       if (this.photos.length === 0) {
         this.error = 'Nenhuma foto encontrada para a busca realizada.';
       }
@@ -249,10 +252,19 @@ class PhotoPrismSearchCard extends HTMLElement {
             transform: translateY(1px);
           }
 
+          .explanation-info {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--primary-text-color, #212121);
+            margin-top: -10px;
+            margin-bottom: 6px;
+            padding-left: 4px;
+          }
+
           .translated-info {
             font-size: 11px;
             color: var(--secondary-text-color, #aaaaaa);
-            margin-top: -10px;
+            margin-top: 0px;
             margin-bottom: 14px;
             font-style: italic;
             padding-left: 4px;
@@ -490,6 +502,7 @@ class PhotoPrismSearchCard extends HTMLElement {
             </button>
           </div>
 
+          <div class="explanation-info" style="display: none;"></div>
           <div class="translated-info" style="display: none;"></div>
 
           <div class="loader-bar">
@@ -526,11 +539,22 @@ class PhotoPrismSearchCard extends HTMLElement {
 
     // 2. Perform granular updates to the DOM without recreation
     
+    // Update explanation text
+    const expEl = this.shadowRoot.querySelector('.explanation-info');
+    if (expEl) {
+      if (this.explanation) {
+        expEl.textContent = this.explanation;
+        expEl.style.display = 'block';
+      } else {
+        expEl.style.display = 'none';
+      }
+    }
+    
     // Update translation text
     const transEl = this.shadowRoot.querySelector('.translated-info');
     if (transEl) {
       if (this.translatedQuery) {
-        transEl.textContent = `Filtro gerado: "${this.translatedQuery}"`;
+        transEl.innerHTML = `Filtro gerado: <code>${this.translatedQuery}</code>`;
         transEl.style.display = 'block';
       } else {
         transEl.style.display = 'none';

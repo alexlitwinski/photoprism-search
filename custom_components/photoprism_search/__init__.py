@@ -69,7 +69,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # 1. Translate query
         system_instruction = (
             "You are an AI assistant that translates natural language photo search requests "
-            "into a PhotoPrism search query string. Return ONLY a JSON object with the format: {\"q\": \"translated query\"}."
+            "into a PhotoPrism search query string. PhotoPrism search query string supports filters like: "
+            'subject:"Person Name" (for people/faces), place:"Place Name", country:xx (2-letter country code), '
+            "label:tag, category:cat, year:yyyy, month:mm, favorite:true, etc. "
+            "RULES:\n"
+            "1. ALWAYS wrap values containing spaces or special characters in double quotes. Example: place:\"New York\".\n"
+            "2. Translate Portuguese labels/categories (e.g. 'praia', 'gato', 'cachorro', 'casamento') "
+            "to English (e.g. category:beach, label:cat, label:dog, label:wedding) because PhotoPrism auto-labels in English.\n"
+            "3. If a search term has multiple meanings, you can combine them (e.g., label:beach).\n"
+            "Return ONLY a JSON object with the format: "
+            "{\"q\": \"translated query\", \"explanation\": \"Breve resumo em português de como você entendeu o pedido\"}."
         )
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
         translated_q = ""
@@ -85,7 +94,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if resp.status == 200:
                     resp_json = await resp.json()
                     text_out = resp_json["candidates"][0]["content"]["parts"][0]["text"]
-                    translated_q = json.loads(text_out).get("q", "")
+                    parsed = json.loads(text_out)
+                    translated_q = parsed.get("q", "")
         except Exception:
             _LOGGER.warning("Gemini failed during service search, using raw query")
             
@@ -289,13 +299,22 @@ async def websocket_search(
         'subject:"Person Name" (for people/faces), place:"Place Name", country:xx (2-letter country code), '
         "label:tag, category:cat, year:yyyy, month:mm, favorite:true, quality:3, etc. "
         "You can combine multiple subjects/filters with spaces. "
-        "Return ONLY a JSON object with the format: {\"q\": \"translated query\"}. "
-        "Do not output markdown, do not write explanations. Just JSON."
+        "CRITICAL RULES:\n"
+        "1. ALWAYS wrap values containing spaces or special characters in double quotes. "
+        "Example: place:\"New York\" instead of place:New York. Never leave spaces without quotes.\n"
+        "2. Translate Portuguese search terms (e.g. 'praia', 'gato', 'cachorro', 'casamento', 'viagem') "
+        "to English in 'label:' or 'category:' filters (e.g. category:beach, label:cat, label:wedding, label:trip) "
+        "because PhotoPrism auto-labels in English. If a label exists in both languages (e.g. 'Rio de Janeiro'), "
+        "use the translated equivalent (e.g. place:\"Rio de Janeiro\").\n"
+        "3. Translate locations (e.g. 'NYC' -> place:\"New York\" or place:NYC, 'Aracaju' -> place:Aracaju).\n"
+        "Return ONLY a JSON object with the format: "
+        "{\"q\": \"translated query string\", \"explanation\": \"Breve resumo em português explicando o que você entendeu do pedido do usuário (ex: 'Buscando fotos de Hanna na praia')\"}"
     )
 
     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
     
     translated_q = ""
+    explanation = ""
     try:
         async with session.post(
             gemini_url,
@@ -318,6 +337,7 @@ async def websocket_search(
                     text_out = resp_json["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = json.loads(text_out)
                     translated_q = parsed.get("q", "")
+                    explanation = parsed.get("explanation", "")
                 except (KeyError, IndexError, ValueError) as err:
                     _LOGGER.error("Failed to parse Gemini response: %s (Raw: %s)", err, resp_json)
             else:
@@ -329,8 +349,9 @@ async def websocket_search(
     # Fallback to query text directly if translation failed
     if not translated_q:
         translated_q = query_text
+        explanation = f"Buscando por: {query_text}"
 
-    _LOGGER.info("Translated search query: '%s' -> '%s'", query_text, translated_q)
+    _LOGGER.info("Translated search query: '%s' -> '%s' (Explanation: %s)", query_text, translated_q, explanation)
 
     # 2. Get session & query PhotoPrism
     session_id, _ = await get_photoprism_session(hass, entry_id)
@@ -392,6 +413,7 @@ async def websocket_search(
                 msg["id"],
                 {
                     "translated_query": translated_q,
+                    "explanation": explanation,
                     "photos": results
                 }
             )
