@@ -158,6 +158,19 @@ class PhotoPrismSearchCard extends HTMLElement {
   render() {
     if (!this.hass) return;
 
+    // Save input value and selection/focus state
+    const activeEl = this.shadowRoot.activeElement;
+    const inputWasFocused = activeEl && activeEl.id === 'search-input';
+    const oldInputValue = this.shadowRoot.querySelector('#search-input') 
+      ? this.shadowRoot.querySelector('#search-input').value 
+      : '';
+      
+    const notifyInputWasFocused = activeEl && activeEl.id === 'custom-notify-input';
+    const oldNotifyValue = this.shadowRoot.querySelector('#custom-notify-input')
+      ? this.shadowRoot.querySelector('#custom-notify-input').value
+      : '';
+
+
     // Get notify services dynamically from hass
     const notifyServices = [];
     if (this.hass.services && this.hass.services.notify) {
@@ -563,6 +576,26 @@ class PhotoPrismSearchCard extends HTMLElement {
     `;
 
     this.shadowRoot.innerHTML = style + body;
+
+    // Restore input value and focus
+    const newInput = this.shadowRoot.querySelector('#search-input');
+    if (newInput) {
+      newInput.value = oldInputValue;
+      if (inputWasFocused) {
+        newInput.focus();
+        // Place cursor at the end of the text
+        newInput.setSelectionRange(oldInputValue.length, oldInputValue.length);
+      }
+    }
+
+    const newNotifyInput = this.shadowRoot.querySelector('#custom-notify-input');
+    if (newNotifyInput) {
+      newNotifyInput.value = oldNotifyValue;
+      if (notifyInputWasFocused) {
+        newNotifyInput.focus();
+        newNotifyInput.setSelectionRange(oldNotifyValue.length, oldNotifyValue.length);
+      }
+    }
   }
 }
 
