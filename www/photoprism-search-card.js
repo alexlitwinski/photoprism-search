@@ -16,6 +16,9 @@ class PhotoPrismSearchCard extends HTMLElement {
     this.translatedQuery = '';
     this.explanation = '';
     this.selectedPhoto = null; // For the forward dialog
+    this.chatHistory = [
+      { sender: 'agent', text: 'Olá! Como posso ajudar você a encontrar suas fotos hoje? Pergunte por pessoas, locais, datas ou etiquetas.' }
+    ];
   }
 
   // Set configuration
@@ -43,6 +46,7 @@ class PhotoPrismSearchCard extends HTMLElement {
   // First time the element is added to DOM
   connectedCallback() {
     this.render();
+    this.scrollToBottom();
   }
 
   // Helper to discover the photoprism_search entry_id
@@ -66,24 +70,41 @@ class PhotoPrismSearchCard extends HTMLElement {
     return null;
   }
 
+  scrollToBottom() {
+    setTimeout(() => {
+      const chatArea = this.shadowRoot.querySelector('.chat-area');
+      if (chatArea) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
+    }, 50);
+  }
+
   // Handle the search action
   async performSearch() {
     const queryInput = this.shadowRoot.querySelector('#search-input');
     const query = queryInput ? queryInput.value.trim() : '';
     if (!query) return;
 
+    // Clear input immediately
+    if (queryInput) queryInput.value = '';
+
+    // Add user message to history
+    this.chatHistory.push({ sender: 'user', text: query });
+
     this.searching = true;
     this.error = null;
-    this.photos = [];
     this.translatedQuery = '';
     this.explanation = '';
     this.render();
+    this.scrollToBottom();
 
     const entryId = await this.getEntryId();
     if (!entryId) {
       this.searching = false;
       this.error = 'Nenhuma configuração do PhotoPrism AI Search encontrada. Configure a integração primeiro.';
+      this.chatHistory.push({ sender: 'agent', text: 'Erro: Nenhuma configuração da integração encontrada.' });
       this.render();
+      this.scrollToBottom();
       return;
     }
 
@@ -91,21 +112,29 @@ class PhotoPrismSearchCard extends HTMLElement {
       const result = await this.hass.callWS({
         type: 'photoprism_search/search',
         entry_id: entryId,
-        query: query
+        query: query,
+        history: this.chatHistory.slice(0, -1) // Send all context before this message
       });
 
       this.photos = result.photos || [];
       this.translatedQuery = result.translated_query || '';
       this.explanation = result.explanation || '';
-      if (this.photos.length === 0) {
-        this.error = 'Nenhuma foto encontrada para a busca realizada.';
+      
+      // Add agent response to history
+      const responseText = result.response || 'Busca concluída.';
+      this.chatHistory.push({ sender: 'agent', text: responseText });
+      
+      if (this.photos.length === 0 && result.translated_query) {
+        this.chatHistory.push({ sender: 'agent', text: 'Não encontrei nenhuma foto correspondente a essa busca no PhotoPrism.' });
       }
     } catch (err) {
       console.error(err);
       this.error = err.message || 'Erro ao realizar a busca.';
+      this.chatHistory.push({ sender: 'agent', text: `Ocorreu um erro: ${this.error}` });
     } finally {
       this.searching = false;
       this.render();
+      this.scrollToBottom();
     }
   }
 
@@ -206,6 +235,42 @@ class PhotoPrismSearchCard extends HTMLElement {
             color: var(--primary-text-color, #212121);
           }
 
+          .chat-area {
+            max-height: 250px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 8px 4px;
+            border-bottom: 1px solid var(--divider-color, #e0e0e0);
+            scroll-behavior: smooth;
+          }
+
+          .chat-bubble {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            line-height: 1.4;
+            word-wrap: break-word;
+          }
+
+          .chat-bubble.user {
+            background: var(--primary-color, #03a9f4);
+            color: var(--text-primary-color, white);
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+          }
+
+          .chat-bubble.agent {
+            background: var(--secondary-background-color, #f4f5f7);
+            color: var(--primary-text-color, #212121);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            border: 1px solid var(--divider-color, #e0e0e0);
+          }
+
           .search-box {
             display: flex;
             gap: 8px;
@@ -256,7 +321,7 @@ class PhotoPrismSearchCard extends HTMLElement {
             font-size: 13px;
             font-weight: 500;
             color: var(--primary-text-color, #212121);
-            margin-top: -10px;
+            margin-top: 4px;
             margin-bottom: 6px;
             padding-left: 4px;
           }
@@ -497,15 +562,17 @@ class PhotoPrismSearchCard extends HTMLElement {
             <span class="title">PhotoPrism AI Search</span>
           </div>
 
+          <div class="chat-area"></div>
+
           <div class="search-box">
             <input 
               type="text" 
               id="search-input" 
-              placeholder="Ex: Hanna na praia com o Alex em 2024..." 
+              placeholder="Pergunte ou diga o que você procura..." 
               onkeydown="if(event.key === 'Enter') this.getRootNode().host.performSearch()"
             />
             <button onclick="this.getRootNode().host.performSearch()">
-              <ha-icon icon="mdi:magnify"></ha-icon> Buscar
+              <ha-icon icon="mdi:send"></ha-icon>
             </button>
           </div>
 
@@ -546,11 +613,21 @@ class PhotoPrismSearchCard extends HTMLElement {
 
     // 2. Perform granular updates to the DOM without recreation
     
+    // Update chat messages
+    const chatEl = this.shadowRoot.querySelector('.chat-area');
+    if (chatEl) {
+      let chatHtml = '';
+      this.chatHistory.forEach(msg => {
+        chatHtml += `<div class="chat-bubble ${msg.sender}">${msg.text}</div>`;
+      });
+      chatEl.innerHTML = chatHtml;
+    }
+    
     // Update explanation text
     const expEl = this.shadowRoot.querySelector('.explanation-info');
     if (expEl) {
       if (this.explanation) {
-        expEl.textContent = this.explanation;
+        expEl.textContent = `Entendimento: ${this.explanation}`;
         expEl.style.display = 'block';
       } else {
         expEl.style.display = 'none';
