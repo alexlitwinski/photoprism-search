@@ -269,6 +269,7 @@ class PhotoPrismImageView(HomeAssistantView):
         vol.Required("type"): "photoprism_search/search",
         vol.Required("entry_id"): str,
         vol.Required("query"): str,
+        vol.Optional("history"): list,
     }
 )
 @websocket_api.async_response
@@ -277,9 +278,10 @@ async def websocket_search(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Handle PhotoPrism AI search requests."""
+    """Handle PhotoPrism AI search requests with conversation context and database metadata."""
     entry_id = msg["entry_id"]
     query_text = msg["query"]
+    history = msg.get("history", [])
     
     if entry_id not in hass.data[DOMAIN]:
         connection.send_error(msg["id"], "invalid_entry", "Config entry not found")
@@ -291,42 +293,87 @@ async def websocket_search(
     model = config[CONF_GEMINI_MODEL]
 
     session = aiohttp_client.async_get_clientsession(hass)
+    session_id, download_token = await get_photoprism_session(hass, entry_id)
 
-    # 1. Ask Gemini to translate the query
+    # 1. Fetch metadata (subjects & labels) from PhotoPrism to inject into Gemini prompt context
+    subjects = []
+    labels = []
+    headers = {}
+    if session_id:
+        headers["X-Session-ID"] = session_id
+        headers["Authorization"] = f"Bearer {session_id}"
+
+    try:
+        async with session.get(f"{url}/api/v1/subjects", headers=headers, params={"count": 250}, ssl=False, timeout=10) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                subjects = [s.get("Name") for s in data if s.get("Name") and s.get("Type") == "person"]
+    except Exception as exc:
+        _LOGGER.warning("Failed fetching subjects for Gemini context: %s", exc)
+
+    try:
+        async with session.get(f"{url}/api/v1/labels", headers=headers, params={"count": 250}, ssl=False, timeout=10) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                labels = [l.get("Name") for l in data if l.get("Name")]
+    except Exception as exc:
+        _LOGGER.warning("Failed fetching labels for Gemini context: %s", exc)
+
+    # 2. Build system instruction with context
     system_instruction = (
-        "You are an AI assistant that translates natural language photo search requests "
-        "into a PhotoPrism search query string. PhotoPrism search query string supports filters like: "
-        'subject:"Person Name" (for people/faces), place:"Place Name", country:xx (2-letter country code), '
-        "label:tag, category:cat, year:yyyy, month:mm, favorite:true, quality:3, etc. "
-        "You can combine multiple subjects/filters with spaces. "
-        "CRITICAL RULES:\n"
-        "1. ALWAYS wrap values containing spaces or special characters in double quotes. "
-        "Example: place:\"New York\" instead of place:New York. Never leave spaces without quotes.\n"
-        "2. Translate Portuguese search terms (e.g. 'praia', 'gato', 'cachorro', 'casamento', 'viagem') "
-        "to English in 'label:' or 'category:' filters (e.g. category:beach, label:cat, label:wedding, label:trip) "
-        "because PhotoPrism auto-labels in English. If a label exists in both languages (e.g. 'Rio de Janeiro'), "
-        "use the translated equivalent (e.g. place:\"Rio de Janeiro\").\n"
-        "3. Translate locations (e.g. 'NYC' -> place:\"New York\" or place:NYC, 'Aracaju' -> place:Aracaju).\n"
-        "Return ONLY a JSON object with the format: "
-        "{\"q\": \"translated query string\", \"explanation\": \"Breve resumo em português explicando o que você entendeu do pedido do usuário (ex: 'Buscando fotos de Hanna na praia')\"}"
+        "Você é um assistente de busca em linguagem natural integrado a uma galeria de fotos do PhotoPrism.\n"
+        "Seu papel é interagir de forma amigável com o usuário em português e deduzir os termos técnicos de busca no banco do PhotoPrism.\n\n"
+        "O banco de dados do PhotoPrism atualmente possui estes dados conhecidos:\n"
+        f"- Pessoas cadastradas (subjects): {', '.join(subjects)}\n"
+        f"- Etiquetas cadastradas (labels): {', '.join(labels)}\n\n"
+        "O PhotoPrism suporta a seguinte sintaxe de filtros na string de busca:\n"
+        "- subject:\"Nome da Pessoa\" (busca rostos conhecidos)\n"
+        "- place:\"Nome do Local\" (cidade, estado ou país)\n"
+        "- label:etiqueta (sempre em inglês se for etiqueta automática do PhotoPrism)\n"
+        "- category:categoria (ex: category:beach, category:water)\n"
+        "- year:yyyy (ano)\n"
+        "- month:mm (mês)\n"
+        "- favorite:true (favoritos)\n\n"
+        "REGRAS DE CONVERSAÇÃO E BUSCA:\n"
+        "1. SEMPRE envolva valores de busca que contenham espaços em aspas duplas (ex: place:\"Ouro Preto\", subject:\"João Guilherme\"). Nunca deixe espaços sem aspas.\n"
+        "2. Traduza termos em português para o inglês se for um label/category (ex: 'praia' -> label:beach, 'gato' -> label:cat).\n"
+        "3. Se o usuário disser apenas um primeiro nome (ex: 'João') e houver múltiplos matches no banco (ex: 'João Guilherme' e 'João Litwinski'), "
+        "não preencha o filtro de busca ('q': '') e pergunte ao usuário educadamente no campo 'response' a qual João ele se refere.\n"
+        "4. Se o usuário estiver respondendo a uma pergunta anterior (ex: 'Guilherme' após você perguntar qual João), lembre-se do contexto para formar o filtro correto (ex: subject:\"João Guilherme\").\n"
+        "5. Sempre responda no campo 'response' com uma mensagem amigável em português explicando o que está buscando ou respondendo à dúvida do usuário.\n\n"
+        "Retorne APENAS um objeto JSON válido no formato:\n"
+        "{\n"
+        "  \"q\": \"string de busca traduzida para o PhotoPrism (deixe vazio se houver ambiguidade não resolvida)\",\n"
+        "  \"response\": \"Sua resposta amigável ao usuário em português\"\n"
+        "}"
     )
 
+    # 3. Format contents list with chat history
+    contents_list = []
+    for turn in history:
+        role = "user" if turn.get("sender") == "user" else "model"
+        contents_list.append({
+            "role": role,
+            "parts": [{"text": turn.get("text", "")}]
+        })
+    # Add current query
+    contents_list.append({
+        "role": "user",
+        "parts": [{"text": query_text}]
+    })
+
     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
-    
     translated_q = ""
-    explanation = ""
+    chat_response = ""
+    
     try:
         async with session.post(
             gemini_url,
             json={
-                "contents": [
-                    {
-                        "role": "user",
-                        "parts": [
-                            {"text": f"System Instructions: {system_instruction}\nUser request: {query_text}"}
-                        ]
-                    }
-                ],
+                "contents": contents_list,
+                "systemInstruction": {
+                    "parts": [{"text": system_instruction}]
+                },
                 "generationConfig": {"responseMimeType": "application/json"},
             },
             timeout=15
@@ -337,7 +384,7 @@ async def websocket_search(
                     text_out = resp_json["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = json.loads(text_out)
                     translated_q = parsed.get("q", "")
-                    explanation = parsed.get("explanation", "")
+                    chat_response = parsed.get("response", "")
                 except (KeyError, IndexError, ValueError) as err:
                     _LOGGER.error("Failed to parse Gemini response: %s (Raw: %s)", err, resp_json)
             else:
@@ -346,21 +393,26 @@ async def websocket_search(
     except Exception as exc:
         _LOGGER.exception("Error calling Gemini API")
 
-    # Fallback to query text directly if translation failed
-    if not translated_q:
+    if not chat_response:
+        chat_response = f"Buscando fotos por: {query_text}"
         translated_q = query_text
-        explanation = f"Buscando por: {query_text}"
 
-    _LOGGER.info("Translated search query: '%s' -> '%s' (Explanation: %s)", query_text, translated_q, explanation)
+    # If the AI concluded that query is ambiguous (empty search string), return empty results immediately
+    if not translated_q:
+        connection.send_result(
+            msg["id"],
+            {
+                "translated_query": "",
+                "explanation": chat_response,
+                "response": chat_response,
+                "photos": []
+            }
+        )
+        return
 
-    # 2. Get session & query PhotoPrism
-    session_id, _ = await get_photoprism_session(hass, entry_id)
-    
-    headers = {}
-    if session_id:
-        headers["X-Session-ID"] = session_id
-        headers["Authorization"] = f"Bearer {session_id}"
+    _LOGGER.info("Translated search query: '%s' -> '%s' (Response: %s)", query_text, translated_q, chat_response)
 
+    # 4. Search PhotoPrism using the translated query
     photos_endpoint = f"{url}/api/v1/photos"
     params = {
         "q": translated_q,
@@ -382,15 +434,11 @@ async def websocket_search(
                 return
             
             photos_data = await resp.json()
-            
-            # Format the output for the card
             results = []
-            # PhotoPrism returns either a list of photos directly, or a dictionary containing a list
             photos_list = photos_data if isinstance(photos_data, list) else (photos_data.get("photos") or photos_data.get("result") or [])
             
             for item in photos_list:
                 file_hash = item.get("Hash") or ""
-                # Try to get file hash if not directly on item
                 if not file_hash and item.get("Files"):
                     file_hash = item["Files"][0].get("Hash") or ""
                 
@@ -404,7 +452,6 @@ async def websocket_search(
                     "taken_at": item.get("TakenAt") or "",
                     "place": item.get("PlaceName") or item.get("PlaceCountry") or "",
                     "labels": [label.get("Name") for label in item.get("Labels", [])] if item.get("Labels") else [],
-                    # Secure proxy URLs for Home Assistant Lovelace Card
                     "thumb_url": f"/api/photoprism_search/image/{entry_id}/{file_hash}",
                     "download_url": f"/api/photoprism_search/image/{entry_id}/{file_hash}?download=true",
                 })
@@ -413,7 +460,8 @@ async def websocket_search(
                 msg["id"],
                 {
                     "translated_query": translated_q,
-                    "explanation": explanation,
+                    "explanation": chat_response,
+                    "response": chat_response,
                     "photos": results
                 }
             )
